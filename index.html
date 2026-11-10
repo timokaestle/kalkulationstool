@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bierdeckel">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121417" media="(prefers-color-scheme: dark)">
+<title>Bierdeckelrechnung</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #1b1f24; --muted: #66707c; --line: #e2e5e9;
+    --field: #f7f8fa; --accent: #2a5bd7;
+    --kosten: #d9a3a3; --zins: #a8343a; --tilg: #9aa3ad; --miete: #2f6596;
+    --good: #1d7f4c; --good-bg: #e3f4ea; --mid: #9a6200; --mid-bg: #fcf1dc; --bad: #b3332c; --bad-bg: #fbe6e4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121417; --card: #1b1e23; --text: #e8eaed; --muted: #9aa3ae; --line: #2d3239;
+      --field: #23272d; --accent: #7aa0ff;
+      --kosten: #b98585; --zins: #c9474d; --tilg: #7c8590; --miete: #4a87bf;
+      --good: #57cf8e; --good-bg: #16301f; --mid: #f0b54a; --mid-bg: #382b12; --bad: #ff7d74; --bad-bg: #3a1c1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  }
+  main { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin: 4px 0 16px; letter-spacing: -0.01em; }
+  .layout { display: grid; gap: 16px; }
+  @media (min-width: 820px) { .layout { grid-template-columns: 360px 1fr; align-items: start; } }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .card h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .card + .card { margin-top: 12px; }
+
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+  .field label { flex: 1; font-size: .95rem; }
+  .field label small { display: block; color: var(--muted); font-size: .78rem; }
+  .input-wrap { position: relative; width: 150px; flex: none; }
+  .input-wrap input {
+    width: 100%; font: inherit; font-size: 1.05rem; text-align: right; color: var(--text);
+    background: var(--field); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 38px 10px 10px; -webkit-appearance: none; appearance: none;
+  }
+  .input-wrap.wide input { padding-right: 54px; }
+  .input-wrap input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .input-wrap span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .9rem; pointer-events: none; }
+  .computed { display: flex; justify-content: space-between; border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 10px; font-weight: 600; }
+
+  .verdict { border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+  .verdict.good { background: var(--good-bg); color: var(--good); }
+  .verdict.mid  { background: var(--mid-bg);  color: var(--mid); }
+  .verdict.bad  { background: var(--bad-bg);  color: var(--bad); }
+  .verdict strong { display: block; font-size: 1.2rem; line-height: 1.25; }
+  .verdict p { margin: 6px 0 0; color: var(--text); font-size: .95rem; }
+
+  .chart { position: relative; height: 300px; margin: 8px 0 0; }
+  .plot { position: absolute; left: 0; right: 0; top: 0; bottom: 40px; border-bottom: 1px solid var(--muted); }
+  .col { position: absolute; bottom: 0; width: 26%; display: flex; flex-direction: column-reverse; }
+  .col.cost { left: 4%; }
+  .col.rent { left: 36%; }
+  .seg { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-size: .78rem; line-height: 1.15; text-align: center; overflow: hidden; }
+  .seg b { font-weight: 600; }
+  .seg.kosten { background: var(--kosten); color: #3b1717; }
+  .seg.zins { background: var(--zins); }
+  .seg.tilg { background: var(--tilg); color: #1b1f24; }
+  .seg.miete { background: var(--miete); font-size: 1rem; font-weight: 700; }
+  .seg.tiny b, .seg.tiny span { display: none; }
+  .total { position: absolute; width: 26%; left: 4%; text-align: center; font-weight: 700; font-size: .95rem; transform: translateY(-100%); padding-bottom: 2px; }
+  .guide { position: absolute; left: 0; right: 0; border-top: 2px dashed currentColor; }
+  .guide span { position: absolute; right: 0; transform: translateY(-115%); font-size: .78rem; white-space: nowrap; background: var(--card); padding-left: 4px; }
+  .guide.top { color: var(--muted); }
+  .guide.rentline { color: var(--miete); }
+  .xlabels { position: absolute; left: 0; right: 0; bottom: 0; height: 36px; font-size: .8rem; color: var(--muted); }
+  .xlabels div { position: absolute; width: 26%; text-align: center; line-height: 1.2; padding-top: 4px; }
+
+  .rows { margin-top: 14px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: .95rem; }
+  .row:first-child { border-top: 0; }
+  .row .v { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pos { color: var(--good); } .neg { color: var(--bad); }
+  .hint { color: var(--muted); font-size: .8rem; margin: 12px 0 0; }
+  button.reset { margin-top: 12px; font: inherit; font-size: .9rem; color: var(--accent); background: none; border: 0; padding: 4px 0; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Bierdeckelrechnung</h1>
+  <div class="layout">
+    <section>
+      <div class="card">
+        <h2>Wohnung</h2>
+        <div class="field"><label for="kaufpreis">Kaufpreis<small>wird voll finanziert</small></label><div class="input-wrap"><input id="kaufpreis" inputmode="decimal" autocomplete="off"><span>€</span></div></div>
+        <div class="field"><label for="flaeche">Wohnfläche</label><div class="input-wrap"><input id="flaeche" inputmode="decimal" autocomplete="off"><span>m²</span></div></div>
+        <div class="field"><label for="qm">Nettokaltmiete<small>pro m², marktüblich</small></label><div class="input-wrap wide"><input id="qm" inputmode="decimal" autocomplete="off"><span>€/m²</span></div></div>
+        <div class="computed"><span>Marktmiete</span><span id="marktmiete">–</span></div>
+      </div>
+      <div class="card">
+        <h2>Finanzierung &amp; Kosten</h2>
+        <div class="field"><label for="zins">Zinssatz<small>pro Jahr</small></label><div class="input-wrap"><input id="zins" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
+        <div class="field"><label for="tilgung">Tilgung<small>anfänglich, pro Jahr</small></label><div class="input-wrap"><input id="tilgung" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
+        <div class="field"><label for="kosten">Kosten<small>nicht umlegbar, pro Monat</small></label><div class="input-wrap"><input id="kosten" inputmode="decimal" autocomplete="off"><span>€</span></div></div>
+        <button class="reset" id="reset" type="button">Beispielwerte laden</button>
+      </div>
+    </section>
+
+    <section class="card" aria-live="polite">
+      <div class="verdict" id="verdict"><strong id="v-title">–</strong><p id="v-text"></p></div>
+      <h2>Im Monat</h2>
+      <div class="chart" id="chart">
+        <div class="plot" id="plot"></div>
+        <div class="xlabels"><div style="left:4%">Kosten, Zins, Tilgung</div><div style="left:36%">Marktmiete</div></div>
+      </div>
+      <div class="rows">
+        <div class="row"><span>Marktmiete</span><span class="v" id="r-miete"></span></div>
+        <div class="row"><span>Kosten + Zins + Tilgung</span><span class="v" id="r-gesamt"></span></div>
+        <div class="row"><span>Differenz pro Monat</span><span class="v" id="r-diff"></span></div>
+        <div class="row"><span>Tilgung, die der Mieter zahlt (pro Jahr)</span><span class="v" id="r-aufbau"></span></div>
+        <div class="row"><span>Mietrendite (Miete × 12 ÷ Kaufpreis)</span><span class="v" id="r-rendite"></span></div>
+        <div class="row"><span>Nötig, damit sich alles trägt</span><span class="v" id="r-ziel"></span></div>
+      </div>
+      <p class="hint">Zins und Tilgung beziehen sich auf den Kaufpreis als Darlehen. Kaufnebenkosten zahlst du aus Eigenkapital.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+(function () {
+  var FIELDS = ["kaufpreis", "flaeche", "qm", "zins", "tilgung", "kosten"];
+  var BEISPIEL = { kaufpreis: "138.200", flaeche: "38", qm: "14,20", zins: "3,95", tilgung: "1,75", kosten: "115" };
+  var STORE = "bierdeckel-werte-v1";
+
+  var euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+  var pct = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var pct1 = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+  // Accepts "138.200", "138200", "3,95", "3.95".
+  function parse(s) {
+    s = String(s || "").replace(/[\s€%]/g, "");
+    if (!s) return 0;
+    if (s.indexOf(",") >= 0) s = s.replace(/\./g, "").replace(",", ".");
+    else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+    var n = parseFloat(s);
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+
+  function $(id) { return document.getElementById(id); }
+
+  function load() {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(STORE)); } catch (e) {}
+    FIELDS.forEach(function (f) {
+      $(f).value = saved && saved[f] != null ? saved[f] : BEISPIEL[f];
+    });
+  }
+  function save() {
+    var o = {};
+    FIELDS.forEach(function (f) { o[f] = $(f).value; });
+    try { localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {}
+  }
+
+  function seg(cls, name, value, h) {
+    var d = document.createElement("div");
+    d.className = "seg " + cls + (h < 30 ? " tiny" : "");
+    d.style.height = h + "px";
+    d.innerHTML = name ? "<b>" + name + "</b><span>" + euro.format(value) + "</span>" : euro.format(value);
+    if (h < 30) d.title = (name ? name + " " : "") + euro.format(value);
+    return d;
+  }
+  function guide(cls, y, text) {
+    var g = document.createElement("div");
+    g.className = "guide " + cls;
+    g.style.bottom = y + "px";
+    g.innerHTML = "<span>" + text + "</span>";
+    return g;
+  }
+
+  function render() {
+    var v = {};
+    FIELDS.forEach(function (f) { v[f] = parse($(f).value); });
+
+    var miete = v.flaeche * v.qm;
+    var zins = v.kaufpreis * v.zins / 100 / 12;
+    var tilg = v.kaufpreis * v.tilgung / 100 / 12;
+    var kosten = v.kosten;
+    var basis = kosten + zins;
+    var gesamt = basis + tilg;
+    var diff = miete - gesamt;
+    var rendite = v.kaufpreis ? miete * 12 / v.kaufpreis * 100 : 0;
+    var ziel = v.kaufpreis ? gesamt * 12 / v.kaufpreis * 100 : 0;
+
+    $("marktmiete").textContent = euro.format(miete);
+
+    // Verdict
+    var vd = $("verdict"), title, text;
+    if (!v.kaufpreis || !miete) {
+      vd.className = "verdict mid";
+      title = "Werte eingeben";
+      text = "Kaufpreis, Fläche und Miete pro m² werden mindestens gebraucht.";
+    } else if (miete >= gesamt) {
+      vd.className = "verdict good";
+      title = "Die Wohnung trägt sich.";
+      text = "Die Miete deckt Kosten, Zins und die ganze Tilgung. Es bleiben " + euro.format(diff) + " im Monat übrig.";
+    } else if (miete >= basis) {
+      var gedeckt = miete - basis;
+      var anteil = tilg ? Math.round(gedeckt / tilg * 100) : 100;
+      vd.className = "verdict mid";
+      title = "Die Wohnung trägt sich nur teilweise.";
+      text = "Die Miete deckt Kosten und Zins, aber nur " + anteil + " % der Tilgung. Du legst " + euro.format(-diff) + " im Monat selbst drauf.";
+    } else {
+      vd.className = "verdict bad";
+      title = "Die Wohnung trägt sich nicht.";
+      text = "Die Miete deckt nicht einmal Kosten und Zins. Du zahlst " + euro.format(-diff) + " im Monat drauf. Selbst ohne Tilgung fehlen schon " + euro.format(basis - miete) + ".";
+    }
+    $("v-title").textContent = title;
+    $("v-text").textContent = text;
+
+    // Chart
+    var plot = $("plot");
+    plot.innerHTML = "";
+    var H = plot.clientHeight - 26; // room for the total label
+    var max = Math.max(gesamt, miete, 1);
+    var px = function (x) { return Math.round(x / max * H); };
+
+    var cost = document.createElement("div");
+    cost.className = "col cost";
+    cost.appendChild(seg("kosten", "Kosten", kosten, px(kosten)));
+    cost.appendChild(seg("zins", "Zins", zins, px(zins)));
+    cost.appendChild(seg("tilg", "Tilgung", tilg, px(tilg)));
+    plot.appendChild(cost);
+
+    var rent = document.createElement("div");
+    rent.className = "col rent";
+    rent.appendChild(seg("miete", "", miete, px(miete)));
+    plot.appendChild(rent);
+
+    var total = document.createElement("div");
+    total.className = "total";
+    total.style.bottom = "auto";
+    total.style.top = (plot.clientHeight - px(gesamt)) + "px";
+    total.textContent = euro.format(gesamt);
+    plot.appendChild(total);
+
+    var topLine = guide("top", px(gesamt), "trägt sich ab " + pct.format(ziel) + " %");
+    var rentLine = guide("rentline", px(miete), pct1.format(rendite) + " %");
+    // Keep the two labels from overlapping.
+    if (Math.abs(px(gesamt) - px(miete)) < 22) {
+      var lower = miete <= gesamt ? rentLine : topLine;
+      lower.querySelector("span").style.transform = "translateY(10%)";
+    }
+    plot.appendChild(topLine);
+    plot.appendChild(rentLine);
+
+    // Numbers
+    $("r-miete").textContent = euro.format(miete);
+    $("r-gesamt").textContent = euro.format(gesamt);
+    var rd = $("r-diff");
+    rd.textContent = (diff >= 0 ? "+" : "−") + euro.format(Math.abs(diff));
+    rd.className = "v " + (diff >= 0 ? "pos" : "neg");
+    $("r-aufbau").textContent = euro.format(Math.max(0, Math.min(tilg, miete - basis)) * 12);
+    $("r-rendite").textContent = pct.format(rendite) + " %";
+    $("r-ziel").textContent = pct.format(ziel) + " %";
+  }
+
+  load();
+  FIELDS.forEach(function (f) {
+    $(f).addEventListener("input", function () { render(); save(); });
+    $(f).addEventListener("focus", function () { this.select(); });
+  });
+  $("reset").addEventListener("click", function () {
+    FIELDS.forEach(function (f) { $(f).value = BEISPIEL[f]; });
+    render(); save();
+  });
+  window.addEventListener("resize", render);
+  render();
+})();
+</script>
+</body>
+</html>
