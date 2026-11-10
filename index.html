@@ -52,6 +52,12 @@
   .input-wrap.wide input { padding-right: 54px; }
   .input-wrap input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .input-wrap span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .9rem; pointer-events: none; }
+  .kosten-head { padding-top: 10px; font-size: .95rem; }
+  .seg-toggle { display: flex; flex: none; gap: 3px; padding: 3px; background: var(--field); border: 1px solid var(--line); border-radius: 10px; }
+  .seg-toggle button { font: inherit; font-size: .85rem; border: 0; background: none; color: var(--muted); padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+  .seg-toggle button[aria-pressed="true"] { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+  .kosten-calc { text-align: right; color: var(--muted); font-size: .85rem; padding: 0 0 4px; min-height: 1.2em; }
+  .kosten-calc b { color: var(--text); }
   .computed { display: flex; justify-content: space-between; border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 10px; font-weight: 600; }
 
   .verdict { border-radius: 16px; padding: 16px; margin-bottom: 12px; }
@@ -106,7 +112,14 @@
         <h2>Finanzierung &amp; Kosten</h2>
         <div class="field"><label for="zins">Zinssatz<small>pro Jahr</small></label><div class="input-wrap"><input id="zins" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
         <div class="field"><label for="tilgung">Tilgung<small>anfänglich, pro Jahr</small></label><div class="input-wrap"><input id="tilgung" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
-        <div class="field"><label for="kosten">Kosten<small>nicht umlegbar, pro Monat</small></label><div class="input-wrap"><input id="kosten" inputmode="decimal" autocomplete="off"><span>€</span></div></div>
+        <div class="field kosten-head"><span>Kosten angeben in</span>
+          <div class="seg-toggle" role="group" aria-label="Kosten angeben in">
+            <button type="button" data-mode="eur" aria-pressed="true">€ / Monat</button>
+            <button type="button" data-mode="pct" aria-pressed="false">% Kaufpreis</button>
+          </div>
+        </div>
+        <div class="field"><label for="kosten">Kosten<small id="kosten-hint">nicht umlegbar, pro Monat</small></label><div class="input-wrap"><input id="kosten" inputmode="decimal" autocomplete="off"><span id="kosten-unit">€</span></div></div>
+        <div class="kosten-calc" id="kosten-calc"></div>
         <button class="reset" id="reset" type="button">Beispielwerte laden</button>
       </div>
     </section>
@@ -134,12 +147,15 @@
 <script>
 (function () {
   var FIELDS = ["kaufpreis", "flaeche", "qm", "zins", "tilgung", "kosten"];
-  var BEISPIEL = { kaufpreis: "138.200", flaeche: "38", qm: "14,20", zins: "3,95", tilgung: "1,75", kosten: "115" };
+  var BEISPIEL = { kaufpreis: "138.200", flaeche: "38", qm: "14,20", zins: "3,95", tilgung: "1,75", kosten: "1" };
+  var BEISPIEL_MODUS = "pct";
   var STORE = "bierdeckel-werte-v1";
+  var modus = "eur"; // Kosten in "eur" (€ pro Monat) oder "pct" (% vom Kaufpreis pro Jahr)
 
   var euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
   var pct = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var pct1 = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  var num2 = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2, useGrouping: false });
 
   // Accepts "138.200", "138200", "3,95", "3.95".
   function parse(s) {
@@ -159,9 +175,31 @@
     FIELDS.forEach(function (f) {
       $(f).value = saved && saved[f] != null ? saved[f] : BEISPIEL[f];
     });
+    // Older saves only had € amounts.
+    setModus(saved ? (saved.kostenModus || "eur") : BEISPIEL_MODUS);
+  }
+  function setModus(m) {
+    modus = m;
+    document.querySelectorAll(".seg-toggle button").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-mode") === m ? "true" : "false");
+    });
+    $("kosten-unit").textContent = m === "pct" ? "%" : "€";
+    $("kosten-hint").textContent = m === "pct" ? "vom Kaufpreis, pro Jahr" : "nicht umlegbar, pro Monat";
+  }
+  // Switching keeps the same amount: 115 € ↔ 1 % (bei 138.200 € Kaufpreis).
+  function switchModus(m) {
+    if (m === modus) return;
+    var kp = parse($("kaufpreis").value), k = parse($("kosten").value);
+    if (kp && k) {
+      $("kosten").value = m === "pct"
+        ? num2.format(k * 12 / kp * 100)
+        : String(Math.round(kp * k / 100 / 12));
+    }
+    setModus(m);
+    render(); save();
   }
   function save() {
-    var o = {};
+    var o = { kostenModus: modus };
     FIELDS.forEach(function (f) { o[f] = $(f).value; });
     try { localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {}
   }
@@ -189,7 +227,13 @@
     var miete = v.flaeche * v.qm;
     var zins = v.kaufpreis * v.zins / 100 / 12;
     var tilg = v.kaufpreis * v.tilgung / 100 / 12;
-    var kosten = v.kosten;
+    var kosten = modus === "pct" ? v.kaufpreis * v.kosten / 100 / 12 : v.kosten;
+    var kc = $("kosten-calc");
+    if (modus === "pct") {
+      kc.innerHTML = "= <b>" + euro.format(kosten) + " im Monat</b> (" + euro.format(kosten * 12) + " im Jahr)";
+    } else {
+      kc.textContent = v.kaufpreis && kosten ? "≈ " + pct.format(kosten * 12 / v.kaufpreis * 100) + " % vom Kaufpreis pro Jahr" : "";
+    }
     var basis = kosten + zins;
     var gesamt = basis + tilg;
     var diff = miete - gesamt;
@@ -276,7 +320,11 @@
   });
   $("reset").addEventListener("click", function () {
     FIELDS.forEach(function (f) { $(f).value = BEISPIEL[f]; });
+    setModus(BEISPIEL_MODUS);
     render(); save();
+  });
+  document.querySelectorAll(".seg-toggle button").forEach(function (b) {
+    b.addEventListener("click", function () { switchModus(b.getAttribute("data-mode")); });
   });
   window.addEventListener("resize", render);
   render();
