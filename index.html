@@ -50,7 +50,24 @@
     padding: 10px 38px 10px 10px; -webkit-appearance: none; appearance: none;
   }
   .input-wrap.wide input { padding-right: 54px; }
-  #kosten { padding-right: 66px; }  .input-wrap input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  #kosten { padding-right: 66px; }
+
+  @media (min-width: 820px) { .saved { grid-column: 1 / -1; } }
+  .save-row { display: flex; gap: 8px; }
+  .save-row input { flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  .save-row input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .btn { font: inherit; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; white-space: nowrap; }
+  .save-msg { margin: 6px 0 0; font-size: .85rem; color: var(--good); min-height: 1.2em; }
+  .empty { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
+  .saved-list { list-style: none; margin: 4px 0 0; padding: 0; }
+  .saved-list li { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line); }
+  .saved-list li:first-child { border-top: 0; }
+  .saved-list .load { flex: 1; min-width: 0; text-align: left; font: inherit; color: var(--text); background: none; border: 0; padding: 10px 0; cursor: pointer; }
+  .saved-list .name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .saved-list .meta { display: block; font-size: .8rem; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .dot.good { background: var(--good); } .dot.mid { background: var(--mid); } .dot.bad { background: var(--bad); }
+  .del { font-size: 1.3rem; line-height: 1; color: var(--muted); background: none; border: 0; padding: 8px; cursor: pointer; }  .input-wrap input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .input-wrap span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .9rem; pointer-events: none; }
   .computed { display: flex; justify-content: space-between; border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 10px; font-weight: 600; }
 
@@ -129,6 +146,18 @@
       </div>
       <p class="hint">Zins und Tilgung beziehen sich auf den Kaufpreis als Darlehen. Kaufnebenkosten zahlst du aus Eigenkapital.</p>
     </section>
+
+    <section class="card saved">
+      <h2>Gespeicherte Rechnungen</h2>
+      <div class="save-row">
+        <input id="save-name" placeholder="Name, z. B. Bernau 40 m²" autocomplete="off" enterkeyhint="done">
+        <button class="btn" id="save-btn" type="button">Speichern</button>
+      </div>
+      <p class="save-msg" id="save-msg" aria-live="polite"></p>
+      <p class="empty" id="saved-empty">Noch keine Rechnung gespeichert.</p>
+      <ul class="saved-list" id="saved-list"></ul>
+      <p class="hint">Gleicher Name überschreibt die alte Rechnung. Gespeichert wird nur auf diesem Gerät.</p>
+    </section>
   </div>
 </main>
 
@@ -194,6 +223,66 @@
     try { localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {}
   }
 
+  // Saved calculations (this device only).
+  var LIST = "bierdeckel-rechnungen-v1";
+  var last = null;
+  var datum = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  function readList() {
+    try { return JSON.parse(localStorage.getItem(LIST)) || []; } catch (e) { return []; }
+  }
+  function writeList(l) {
+    try { localStorage.setItem(LIST, JSON.stringify(l)); return true; } catch (e) { return false; }
+  }
+  function renderList() {
+    var l = readList(), ul = $("saved-list");
+    ul.innerHTML = "";
+    $("saved-empty").hidden = l.length > 0;
+    l.forEach(function (r) {
+      var li = document.createElement("li");
+      var dot = document.createElement("span");
+      dot.className = "dot " + r.status;
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "load";
+      var n = document.createElement("span");
+      n.className = "name"; n.textContent = r.name;
+      var m = document.createElement("span");
+      m.className = "meta";
+      m.textContent = datum.format(new Date(r.datum)) + " · " + euro.format(r.kaufpreis) + " · " +
+        (r.diff >= 0 ? "+" : "−") + euro.format(Math.abs(r.diff)) + " im Monat";
+      b.appendChild(n); b.appendChild(m);
+      b.addEventListener("click", function () { loadRechnung(r); });
+      var d = document.createElement("button");
+      d.type = "button"; d.className = "del"; d.textContent = "×";
+      d.setAttribute("aria-label", r.name + " löschen");
+      d.addEventListener("click", function () {
+        if (!confirm("„" + r.name + "“ löschen?")) return;
+        writeList(readList().filter(function (x) { return x.id !== r.id; }));
+        $("save-msg").textContent = "";
+        renderList();
+      });
+      li.appendChild(dot); li.appendChild(b); li.appendChild(d);
+      ul.appendChild(li);
+    });
+  }
+  function saveRechnung() {
+    var name = $("save-name").value.trim() || "Rechnung vom " + datum.format(new Date());
+    var werte = {};
+    FIELDS.forEach(function (f) { werte[f] = $(f).value; });
+    var l = readList().filter(function (x) { return x.name !== name; });
+    l.unshift({ id: String(Date.now()), name: name, datum: new Date().toISOString(), werte: werte,
+      kostenPct: kostenPct, status: last.status, diff: last.diff, kaufpreis: last.kaufpreis });
+    $("save-msg").textContent = writeList(l) ? "Gespeichert: " + name : "Speichern ist in diesem Browser nicht möglich.";
+    renderList();
+  }
+  function loadRechnung(r) {
+    FIELDS.forEach(function (f) { $(f).value = r.werte[f] != null ? r.werte[f] : ""; });
+    kostenPct = r.kostenPct;
+    $("save-name").value = r.name;
+    $("save-msg").textContent = "Geladen: " + r.name;
+    render(); save();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function seg(cls, name, value, h) {
     var d = document.createElement("div");
     d.className = "seg " + cls + (h < 30 ? " tiny" : "");
@@ -251,6 +340,7 @@
     }
     $("v-title").textContent = title;
     $("v-text").textContent = text;
+    last = { status: vd.className.split(" ")[1], diff: diff, kaufpreis: v.kaufpreis };
 
     // Chart
     var plot = $("plot");
@@ -317,8 +407,11 @@
   });
   kf.addEventListener("input", function () { kostenPct = kf.value; render(); save(); });
   kf.addEventListener("blur", showKosten);
+  $("save-btn").addEventListener("click", saveRechnung);
+  $("save-name").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); saveRechnung(); this.blur(); } });
   window.addEventListener("resize", render);
   render();
+  renderList();
 })();
 </script>
 </body>
