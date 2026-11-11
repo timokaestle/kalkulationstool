@@ -156,7 +156,6 @@
       <p class="save-msg" id="save-msg" aria-live="polite"></p>
       <p class="empty" id="saved-empty">Noch keine Rechnung gespeichert.</p>
       <ul class="saved-list" id="saved-list"></ul>
-      <p class="hint">Gleicher Name überschreibt die alte Rechnung. Gespeichert wird nur auf diesem Gerät.</p>
     </section>
   </div>
 </main>
@@ -272,6 +271,7 @@
     l.unshift({ id: String(Date.now()), name: name, datum: new Date().toISOString(), werte: werte,
       kostenPct: kostenPct, status: last.status, diff: last.diff, kaufpreis: last.kaufpreis });
     $("save-msg").textContent = writeList(l) ? "Gespeichert: " + name : "Speichern ist in diesem Browser nicht möglich.";
+    $("save-name").value = "";
     renderList();
   }
   function loadRechnung(r) {
