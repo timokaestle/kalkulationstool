@@ -50,16 +50,7 @@
     padding: 10px 38px 10px 10px; -webkit-appearance: none; appearance: none;
   }
   .input-wrap.wide input { padding-right: 54px; }
-  #kosten { padding-right: 66px; }
-  .extra { margin: 4px 0 0; border-top: 1px solid var(--line); }
-  .extra summary { display: flex; justify-content: space-between; align-items: center; padding: 10px 0 6px; cursor: pointer; list-style: none; color: var(--accent); font-size: .95rem; }
-  .extra summary::-webkit-details-marker { display: none; }
-  .extra summary span:first-child::before { content: "+ "; }
-  .extra[open] summary span:first-child::before { content: "− "; }
-  .extra-sum { color: var(--muted); font-size: .9rem; }
-  .seg.miete2 { background: #5b8fc0; }
-  .seg.miete3 { background: #86b0d6; color: #10263a; }
-  .input-wrap input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  #kosten { padding-right: 66px; }  .input-wrap input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .input-wrap span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .9rem; pointer-events: none; }
   .computed { display: flex; justify-content: space-between; border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 10px; font-weight: 600; }
 
@@ -109,11 +100,7 @@
         <div class="field"><label for="kaufpreis">Kaufpreis<small>wird voll finanziert</small></label><div class="input-wrap"><input id="kaufpreis" inputmode="decimal" autocomplete="off"><span>€</span></div></div>
         <div class="field"><label for="flaeche">Wohnfläche</label><div class="input-wrap"><input id="flaeche" inputmode="decimal" autocomplete="off"><span>m²</span></div></div>
         <div class="field"><label for="qm">Nettokaltmiete<small>pro m², marktüblich</small></label><div class="input-wrap wide"><input id="qm" inputmode="decimal" autocomplete="off"><span>€/m²</span></div></div>
-        <details class="extra" id="extra">
-          <summary><span>Küche &amp; Stellplatz</span><span class="extra-sum" id="extra-sum"></span></summary>
-          <div class="field"><label for="kueche">Küche<small>Miete pro Monat</small></label><div class="input-wrap"><input id="kueche" inputmode="decimal" autocomplete="off" placeholder="0"><span>€</span></div></div>
-          <div class="field"><label for="stellplatz">Garage / Stellplatz<small>Miete pro Monat</small></label><div class="input-wrap"><input id="stellplatz" inputmode="decimal" autocomplete="off" placeholder="0"><span>€</span></div></div>
-        </details>
+        <div class="field"><label for="zusatz">Küche, Stellplatz<small>Zusatzmiete pro Monat</small></label><div class="input-wrap"><input id="zusatz" inputmode="decimal" autocomplete="off" placeholder="0"><span>€</span></div></div>
         <div class="computed"><span>Marktmiete</span><span id="marktmiete">–</span></div>
       </div>
       <div class="card">
@@ -147,8 +134,8 @@
 
 <script>
 (function () {
-  var FIELDS = ["kaufpreis", "flaeche", "qm", "kueche", "stellplatz", "zins", "tilgung"];
-  var BEISPIEL = { kaufpreis: "138.200", flaeche: "38", qm: "14,20", kueche: "", stellplatz: "", zins: "3,95", tilgung: "1,75" };
+  var FIELDS = ["kaufpreis", "flaeche", "qm", "zusatz", "zins", "tilgung"];
+  var BEISPIEL = { kaufpreis: "138.200", flaeche: "38", qm: "14,20", zusatz: "", zins: "3,95", tilgung: "1,75" };
   var BEISPIEL_KOSTEN = "1";
   var STORE = "bierdeckel-werte-v1";
   // Kosten are typed in % of the purchase price per year; the field shows € per month when not editing.
@@ -177,7 +164,10 @@
     FIELDS.forEach(function (f) {
       $(f).value = saved && saved[f] != null ? saved[f] : BEISPIEL[f];
     });
-    if (parse($("kueche").value) || parse($("stellplatz").value)) $("extra").open = true;
+    // Briefly there were two fields (Küche, Stellplatz); merge them.
+    if (saved && saved.zusatz == null && (parse(saved.kueche) || parse(saved.stellplatz))) {
+      $("zusatz").value = String(parse(saved.kueche) + parse(saved.stellplatz)).replace(".", ",");
+    }
     if (saved && saved.kostenPct != null) {
       kostenPct = saved.kostenPct;
     } else if (saved && saved.kosten != null) {
@@ -225,9 +215,7 @@
     FIELDS.forEach(function (f) { v[f] = parse($(f).value); });
 
     var mieteWohnung = v.flaeche * v.qm;
-    var extras = v.kueche + v.stellplatz;
-    var miete = mieteWohnung + extras;
-    $("extra-sum").textContent = extras ? "+ " + euro.format(extras) : "";
+    var miete = mieteWohnung + v.zusatz;
     var zins = v.kaufpreis * v.zins / 100 / 12;
     var tilg = v.kaufpreis * v.tilgung / 100 / 12;
     var kosten = kostenMonat();
@@ -280,23 +268,8 @@
 
     var rent = document.createElement("div");
     rent.className = "col rent";
-    if (extras) {
-      rent.appendChild(seg("miete", "Wohnung", mieteWohnung, px(mieteWohnung)));
-      if (v.kueche) rent.appendChild(seg("miete2", "Küche", v.kueche, px(v.kueche)));
-      if (v.stellplatz) rent.appendChild(seg("miete3", "Stellplatz", v.stellplatz, px(v.stellplatz)));
-    } else {
-      rent.appendChild(seg("miete", "", miete, px(miete)));
-    }
+    rent.appendChild(seg("miete", "", miete, px(miete)));
     plot.appendChild(rent);
-
-    if (extras) {
-      var rentTotal = document.createElement("div");
-      rentTotal.className = "total";
-      rentTotal.style.left = "36%";
-      rentTotal.style.top = (plot.clientHeight - px(miete)) + "px";
-      rentTotal.textContent = euro.format(miete);
-      plot.appendChild(rentTotal);
-    }
 
     var total = document.createElement("div");
     total.className = "total";
