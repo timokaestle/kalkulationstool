@@ -105,7 +105,8 @@
   .pos { color: var(--good); } .neg { color: var(--bad); }
   .hint { color: var(--muted); font-size: .8rem; margin: 12px 0 0; }
   h2.sub { margin-top: 22px; }
-  .row.strong { font-weight: 600; }
+  .row.sub { border-top: 0; padding-top: 0; font-size: .85rem; color: var(--muted); }
+  .row.sub .v { font-weight: 500; }
   .row.total-row { font-size: 1.1rem; font-weight: 700; border-top: 2px solid var(--text); }
   button.reset { margin-top: 12px; font: inherit; font-size: .9rem; color: var(--accent); background: none; border: 0; padding: 4px 0; cursor: pointer; }
 </style>
@@ -146,9 +147,8 @@
       <div class="rows">
         <div class="row"><span>Wertzuwachs (2 % pro Jahr, steuerfrei)</span><span class="v" id="k-wert"></span></div>
         <div class="row"><span>Tilgung</span><span class="v" id="k-tilg"></span></div>
-        <div class="row"><span id="k-steuer-label">Steuervorteil</span><span class="v" id="k-steuer"></span></div>
-        <div class="row strong"><span>Vermögen aufgebaut</span><span class="v" id="k-summe"></span></div>
-        <div class="row"><span id="k-cash-label">Selbst zugezahlt</span><span class="v" id="k-cash"></span></div>
+        <div class="row"><span id="k-cash-label">Überschuss aus der Miete, nach Steuern</span><span class="v" id="k-cash"></span></div>
+        <div class="row sub"><span>darin Steuerersparnis durch Abschreibung</span><span class="v" id="k-afa"></span></div>
         <div class="row total-row"><span>Verdient in 10 Jahren</span><span class="v" id="k-netto"></span></div>
       </div>
     </section>
@@ -403,20 +403,19 @@
       steuerSumme += -einkuenfte * v.steuer / 100;
     }
     var wert = v.kaufpreis * (Math.pow(1 + WERT, JAHRE) - 1);
-    var summe = wert + tilgSumme + steuerSumme;
-    var cash = diff * 12 * JAHRE;
+    // Cash left from the rent after rate, costs and income tax (or refund).
+    var cash = diff * 12 * JAHRE + steuerSumme;
+    var afaVorteil = v.kaufpreis * GEBAEUDE * AFA * v.steuer / 100 * JAHRE;
     function signed(el, x) {
       el.textContent = (x >= 0 ? "+" : "−") + euro.format(Math.abs(x));
       el.className = "v " + (x >= 0 ? "pos" : "neg");
     }
     $("k-wert").textContent = euro.format(wert);
     $("k-tilg").textContent = euro.format(tilgSumme);
-    $("k-steuer-label").textContent = steuerSumme >= 0 ? "Steuervorteil" : "Steuern auf die Mieteinnahmen";
-    signed($("k-steuer"), steuerSumme);
-    $("k-summe").textContent = euro.format(summe);
-    $("k-cash-label").textContent = cash >= 0 ? "Überschuss aus der Miete" : "Selbst zugezahlt";
+    $("k-cash-label").textContent = cash >= 0 ? "Überschuss aus der Miete, nach Steuern" : "Selbst zugezahlt, nach Steuern";
     signed($("k-cash"), cash);
-    signed($("k-netto"), summe + cash);
+    $("k-afa").textContent = euro.format(afaVorteil);
+    signed($("k-netto"), wert + tilgSumme + cash);
   }
 
   load();
