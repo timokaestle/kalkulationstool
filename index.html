@@ -140,24 +140,17 @@
         <div class="xlabels"><div style="left:4%">Kosten, Zins, Tilgung</div><div style="left:36%">Marktmiete</div></div>
       </div>
       <div class="rows">
-        <div class="row"><span>Marktmiete</span><span class="v" id="r-miete"></span></div>
-        <div class="row"><span>Kosten + Zins + Tilgung</span><span class="v" id="r-gesamt"></span></div>
         <div class="row"><span>Differenz pro Monat</span><span class="v" id="r-diff"></span></div>
-        <div class="row"><span>Tilgung, die der Mieter zahlt (pro Jahr)</span><span class="v" id="r-aufbau"></span></div>
-        <div class="row"><span>Mietrendite (Miete × 12 ÷ Kaufpreis)</span><span class="v" id="r-rendite"></span></div>
-        <div class="row"><span>Nötig, damit sich alles trägt</span><span class="v" id="r-ziel"></span></div>
       </div>
       <h2 class="sub">Kapitalaufbau in 10 Jahren</h2>
       <div class="rows">
-        <div class="row"><span>Wertzuwachs (2 % pro Jahr)</span><span class="v" id="k-wert"></span></div>
+        <div class="row"><span>Wertzuwachs (2 % pro Jahr, steuerfrei)</span><span class="v" id="k-wert"></span></div>
         <div class="row"><span>Tilgung</span><span class="v" id="k-tilg"></span></div>
         <div class="row"><span id="k-steuer-label">Steuervorteil</span><span class="v" id="k-steuer"></span></div>
         <div class="row strong"><span>Vermögen aufgebaut</span><span class="v" id="k-summe"></span></div>
         <div class="row"><span id="k-cash-label">Selbst zugezahlt</span><span class="v" id="k-cash"></span></div>
         <div class="row total-row"><span>Verdient in 10 Jahren</span><span class="v" id="k-netto"></span></div>
       </div>
-      <p class="hint">Steuer: Miete minus Zinsen, Kosten und 2 % Abschreibung auf 80 % des Kaufpreises (Gebäudeanteil), mal Steuersatz. Die Tilgung steigt jedes Jahr, weil die Zinsen sinken. Miete bleibt gleich.</p>
-      <p class="hint">Zins und Tilgung beziehen sich auf den Kaufpreis als Darlehen. Kaufnebenkosten zahlst du aus Eigenkapital.</p>
     </section>
 
     <section class="card saved">
@@ -392,14 +385,9 @@
     plot.appendChild(rentLine);
 
     // Numbers
-    $("r-miete").textContent = euro.format(miete);
-    $("r-gesamt").textContent = euro.format(gesamt);
     var rd = $("r-diff");
     rd.textContent = (diff >= 0 ? "+" : "−") + euro.format(Math.abs(diff));
     rd.className = "v " + (diff >= 0 ? "pos" : "neg");
-    $("r-aufbau").textContent = euro.format(Math.max(0, Math.min(tilg, miete - basis)) * 12);
-    $("r-rendite").textContent = pct.format(rendite) + " %";
-    $("r-ziel").textContent = pct.format(ziel) + " %";
 
     // Kapitalaufbau over 10 years: annuity loan month by month, tax per year.
     var JAHRE = 10, WERT = 0.02, AFA = 0.02, GEBAEUDE = 0.8;
@@ -423,7 +411,7 @@
     }
     $("k-wert").textContent = euro.format(wert);
     $("k-tilg").textContent = euro.format(tilgSumme);
-    $("k-steuer-label").textContent = steuerSumme >= 0 ? "Steuervorteil" : "Steuern auf den Gewinn";
+    $("k-steuer-label").textContent = steuerSumme >= 0 ? "Steuervorteil" : "Steuern auf die Mieteinnahmen";
     signed($("k-steuer"), steuerSumme);
     $("k-summe").textContent = euro.format(summe);
     $("k-cash-label").textContent = cash >= 0 ? "Überschuss aus der Miete" : "Selbst zugezahlt";
