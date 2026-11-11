@@ -124,9 +124,7 @@
         <h2>Finanzierung &amp; Kosten</h2>
         <div class="field"><label for="zins">Zinssatz<small>pro Jahr</small></label><div class="input-wrap"><input id="zins" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
         <div class="field"><label for="tilgung">Tilgung<small>anfänglich, pro Jahr</small></label><div class="input-wrap"><input id="tilgung" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
-        <div class="field"><label for="kosten">Kosten<small>Eingabe in % vom Kaufpreis</small></label><div class="input-wrap wide"><input id="kosten" inputmode="decimal" autocomplete="off"><span id="kosten-unit">%</span></div></div>
-        <button class="reset" id="reset" type="button">Beispielwerte laden</button>
-      </div>
+        <div class="field"><label for="kosten">Kosten<small>Eingabe in % vom Kaufpreis</small></label><div class="input-wrap wide"><input id="kosten" inputmode="decimal" autocomplete="off"><span id="kosten-unit">%</span></div></div>      </div>
     </section>
 
     <section class="card" aria-live="polite">
@@ -393,11 +391,6 @@
   FIELDS.forEach(function (f) {
     $(f).addEventListener("input", function () { render(); save(); });
     $(f).addEventListener("focus", function () { this.select(); });
-  });
-  $("reset").addEventListener("click", function () {
-    FIELDS.forEach(function (f) { $(f).value = BEISPIEL[f]; });
-    kostenPct = BEISPIEL_KOSTEN;
-    render(); save();
   });
   var kf = $("kosten");
   kf.addEventListener("focus", function () {
