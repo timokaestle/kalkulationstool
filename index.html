@@ -129,6 +129,7 @@
         <div class="field"><label for="zins">Zinssatz<small>pro Jahr</small></label><div class="input-wrap"><input id="zins" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
         <div class="field"><label for="tilgung">Tilgung<small>anfänglich, pro Jahr</small></label><div class="input-wrap"><input id="tilgung" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
         <div class="field"><label for="kosten">Kosten<small>Eingabe in % vom Kaufpreis</small></label><div class="input-wrap wide"><input id="kosten" inputmode="decimal" autocomplete="off"><span id="kosten-unit">%</span></div></div>
+        <div class="field"><label for="nebenkosten">Kaufnebenkosten<small>in % vom Kaufpreis, aus Eigenkapital</small></label><div class="input-wrap"><input id="nebenkosten" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
         <div class="field"><label for="steuer">Steuersatz<small>dein persönlicher Grenzsteuersatz</small></label><div class="input-wrap"><input id="steuer" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
       </div>
     </section>
@@ -149,6 +150,7 @@
         <div class="row"><span>Tilgung</span><span class="v" id="k-tilg"></span></div>
         <div class="row"><span id="k-cash-label">Überschuss aus der Miete, nach Steuern</span><span class="v" id="k-cash"></span></div>
         <div class="row sub"><span>darin Steuerersparnis durch Abschreibung</span><span class="v" id="k-afa"></span></div>
+        <div class="row"><span>Kaufnebenkosten</span><span class="v" id="k-nk"></span></div>
         <div class="row total-row"><span>Verdient in 10 Jahren</span><span class="v" id="k-netto"></span></div>
       </div>
     </section>
@@ -168,8 +170,8 @@
 
 <script>
 (function () {
-  var FIELDS = ["kaufpreis", "flaeche", "qm", "zusatz", "zins", "tilgung", "steuer"];
-  var BEISPIEL = { kaufpreis: "138.200", flaeche: "38", qm: "14,20", zusatz: "", zins: "3,95", tilgung: "1,75", steuer: "42" };
+  var FIELDS = ["kaufpreis", "flaeche", "qm", "zusatz", "zins", "tilgung", "nebenkosten", "steuer"];
+  var BEISPIEL = { kaufpreis: "138.200", flaeche: "38", qm: "14,20", zusatz: "", zins: "3,95", tilgung: "1,75", nebenkosten: "10", steuer: "42" };
   var BEISPIEL_KOSTEN = "1";
   var STORE = "bierdeckel-werte-v1";
   // Kosten are typed in % of the purchase price per year; the field shows € per month when not editing.
@@ -281,7 +283,7 @@
     renderList();
   }
   function loadRechnung(r) {
-    FIELDS.forEach(function (f) { $(f).value = r.werte[f] != null ? r.werte[f] : (f === "steuer" ? BEISPIEL.steuer : ""); });
+    FIELDS.forEach(function (f) { $(f).value = r.werte[f] != null ? r.werte[f] : (f === "steuer" || f === "nebenkosten" ? BEISPIEL[f] : ""); });
     kostenPct = r.kostenPct;
     $("save-name").value = r.name;
     $("save-msg").textContent = "Geladen: " + r.name;
@@ -391,6 +393,8 @@
 
     // Kapitalaufbau over 10 years: annuity loan month by month, tax per year.
     var JAHRE = 10, WERT = 0.02, AFA = 0.02, GEBAEUDE = 0.8;
+    var nk = v.kaufpreis * v.nebenkosten / 100;
+    var afaJahr = (v.kaufpreis + nk) * GEBAEUDE * AFA; // Nebenkosten count toward the depreciation base
     var rest = v.kaufpreis, rate = zins + tilg, tilgSumme = 0, steuerSumme = 0;
     for (var j = 0; j < JAHRE; j++) {
       var zinsJahr = 0;
@@ -399,13 +403,13 @@
         var tm = Math.min(Math.max(rate - zm, 0), rest);
         rest -= tm; zinsJahr += zm; tilgSumme += tm;
       }
-      var einkuenfte = miete * 12 - zinsJahr - kosten * 12 - v.kaufpreis * GEBAEUDE * AFA;
+      var einkuenfte = miete * 12 - zinsJahr - kosten * 12 - afaJahr;
       steuerSumme += -einkuenfte * v.steuer / 100;
     }
     var wert = v.kaufpreis * (Math.pow(1 + WERT, JAHRE) - 1);
     // Cash left from the rent after rate, costs and income tax (or refund).
     var cash = diff * 12 * JAHRE + steuerSumme;
-    var afaVorteil = v.kaufpreis * GEBAEUDE * AFA * v.steuer / 100 * JAHRE;
+    var afaVorteil = afaJahr * v.steuer / 100 * JAHRE;
     function signed(el, x) {
       el.textContent = (x >= 0 ? "+" : "−") + euro.format(Math.abs(x));
       el.className = "v " + (x >= 0 ? "pos" : "neg");
@@ -415,7 +419,8 @@
     $("k-cash-label").textContent = cash >= 0 ? "Überschuss aus der Miete, nach Steuern" : "Selbst zugezahlt, nach Steuern";
     signed($("k-cash"), cash);
     $("k-afa").textContent = euro.format(afaVorteil);
-    signed($("k-netto"), wert + tilgSumme + cash);
+    signed($("k-nk"), -nk);
+    signed($("k-netto"), wert + tilgSumme + cash - nk);
   }
 
   load();
