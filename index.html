@@ -104,6 +104,9 @@
   .row .v { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .pos { color: var(--good); } .neg { color: var(--bad); }
   .hint { color: var(--muted); font-size: .8rem; margin: 12px 0 0; }
+  h2.sub { margin-top: 22px; }
+  .row.strong { font-weight: 600; }
+  .row.total-row { font-size: 1.1rem; font-weight: 700; border-top: 2px solid var(--text); }
   button.reset { margin-top: 12px; font: inherit; font-size: .9rem; color: var(--accent); background: none; border: 0; padding: 4px 0; cursor: pointer; }
 </style>
 </head>
@@ -124,7 +127,9 @@
         <h2>Finanzierung &amp; Kosten</h2>
         <div class="field"><label for="zins">Zinssatz<small>pro Jahr</small></label><div class="input-wrap"><input id="zins" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
         <div class="field"><label for="tilgung">Tilgung<small>anfänglich, pro Jahr</small></label><div class="input-wrap"><input id="tilgung" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
-        <div class="field"><label for="kosten">Kosten<small>Eingabe in % vom Kaufpreis</small></label><div class="input-wrap wide"><input id="kosten" inputmode="decimal" autocomplete="off"><span id="kosten-unit">%</span></div></div>      </div>
+        <div class="field"><label for="kosten">Kosten<small>Eingabe in % vom Kaufpreis</small></label><div class="input-wrap wide"><input id="kosten" inputmode="decimal" autocomplete="off"><span id="kosten-unit">%</span></div></div>
+        <div class="field"><label for="steuer">Steuersatz<small>dein persönlicher Grenzsteuersatz</small></label><div class="input-wrap"><input id="steuer" inputmode="decimal" autocomplete="off"><span>%</span></div></div>
+      </div>
     </section>
 
     <section class="card" aria-live="polite">
@@ -142,6 +147,16 @@
         <div class="row"><span>Mietrendite (Miete × 12 ÷ Kaufpreis)</span><span class="v" id="r-rendite"></span></div>
         <div class="row"><span>Nötig, damit sich alles trägt</span><span class="v" id="r-ziel"></span></div>
       </div>
+      <h2 class="sub">Kapitalaufbau in 10 Jahren</h2>
+      <div class="rows">
+        <div class="row"><span>Wertzuwachs (2 % pro Jahr)</span><span class="v" id="k-wert"></span></div>
+        <div class="row"><span>Tilgung</span><span class="v" id="k-tilg"></span></div>
+        <div class="row"><span id="k-steuer-label">Steuervorteil</span><span class="v" id="k-steuer"></span></div>
+        <div class="row strong"><span>Vermögen aufgebaut</span><span class="v" id="k-summe"></span></div>
+        <div class="row"><span id="k-cash-label">Selbst zugezahlt</span><span class="v" id="k-cash"></span></div>
+        <div class="row total-row"><span>Verdient in 10 Jahren</span><span class="v" id="k-netto"></span></div>
+      </div>
+      <p class="hint">Steuer: Miete minus Zinsen, Kosten und 2 % Abschreibung auf 80 % des Kaufpreises (Gebäudeanteil), mal Steuersatz. Die Tilgung steigt jedes Jahr, weil die Zinsen sinken. Miete bleibt gleich.</p>
       <p class="hint">Zins und Tilgung beziehen sich auf den Kaufpreis als Darlehen. Kaufnebenkosten zahlst du aus Eigenkapital.</p>
     </section>
 
@@ -160,8 +175,8 @@
 
 <script>
 (function () {
-  var FIELDS = ["kaufpreis", "flaeche", "qm", "zusatz", "zins", "tilgung"];
-  var BEISPIEL = { kaufpreis: "138.200", flaeche: "38", qm: "14,20", zusatz: "", zins: "3,95", tilgung: "1,75" };
+  var FIELDS = ["kaufpreis", "flaeche", "qm", "zusatz", "zins", "tilgung", "steuer"];
+  var BEISPIEL = { kaufpreis: "138.200", flaeche: "38", qm: "14,20", zusatz: "", zins: "3,95", tilgung: "1,75", steuer: "42" };
   var BEISPIEL_KOSTEN = "1";
   var STORE = "bierdeckel-werte-v1";
   // Kosten are typed in % of the purchase price per year; the field shows € per month when not editing.
@@ -273,7 +288,7 @@
     renderList();
   }
   function loadRechnung(r) {
-    FIELDS.forEach(function (f) { $(f).value = r.werte[f] != null ? r.werte[f] : ""; });
+    FIELDS.forEach(function (f) { $(f).value = r.werte[f] != null ? r.werte[f] : (f === "steuer" ? BEISPIEL.steuer : ""); });
     kostenPct = r.kostenPct;
     $("save-name").value = r.name;
     $("save-msg").textContent = "Geladen: " + r.name;
@@ -385,6 +400,35 @@
     $("r-aufbau").textContent = euro.format(Math.max(0, Math.min(tilg, miete - basis)) * 12);
     $("r-rendite").textContent = pct.format(rendite) + " %";
     $("r-ziel").textContent = pct.format(ziel) + " %";
+
+    // Kapitalaufbau over 10 years: annuity loan month by month, tax per year.
+    var JAHRE = 10, WERT = 0.02, AFA = 0.02, GEBAEUDE = 0.8;
+    var rest = v.kaufpreis, rate = zins + tilg, tilgSumme = 0, steuerSumme = 0;
+    for (var j = 0; j < JAHRE; j++) {
+      var zinsJahr = 0;
+      for (var m = 0; m < 12; m++) {
+        var zm = rest * v.zins / 100 / 12;
+        var tm = Math.min(Math.max(rate - zm, 0), rest);
+        rest -= tm; zinsJahr += zm; tilgSumme += tm;
+      }
+      var einkuenfte = miete * 12 - zinsJahr - kosten * 12 - v.kaufpreis * GEBAEUDE * AFA;
+      steuerSumme += -einkuenfte * v.steuer / 100;
+    }
+    var wert = v.kaufpreis * (Math.pow(1 + WERT, JAHRE) - 1);
+    var summe = wert + tilgSumme + steuerSumme;
+    var cash = diff * 12 * JAHRE;
+    function signed(el, x) {
+      el.textContent = (x >= 0 ? "+" : "−") + euro.format(Math.abs(x));
+      el.className = "v " + (x >= 0 ? "pos" : "neg");
+    }
+    $("k-wert").textContent = euro.format(wert);
+    $("k-tilg").textContent = euro.format(tilgSumme);
+    $("k-steuer-label").textContent = steuerSumme >= 0 ? "Steuervorteil" : "Steuern auf den Gewinn";
+    signed($("k-steuer"), steuerSumme);
+    $("k-summe").textContent = euro.format(summe);
+    $("k-cash-label").textContent = cash >= 0 ? "Überschuss aus der Miete" : "Selbst zugezahlt";
+    signed($("k-cash"), cash);
+    signed($("k-netto"), summe + cash);
   }
 
   load();
